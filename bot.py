@@ -8,9 +8,11 @@ from pyrogram.types import (
     InlineKeyboardMarkup,
     InlineKeyboardButton
 )
-API_ID = 32599427
-API_HASH = "4c94a696dc744d619b19789b93ed4709"
-BOT_TOKEN = "8510708874:AAF0sVI1Lj3aOoQZjmdOUw3kYB-0sLgKOwo"
+import os
+
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 app = Client(
     "pdf_zip_bot",
