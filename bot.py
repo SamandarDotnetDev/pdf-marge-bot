@@ -133,7 +133,13 @@ async def callback_handler(client, callback_query):
         return
 
     # quality selection
+    scale_map = {
+        1: 1,      # Past
+        2: 1.5,    # O‘rta
+        3: 2       # HD
+    }
     if data.startswith("quality_"):
+        scale = int(data.split("_")[1])
         scale = scale_map.get(scale, 1.5)
 
     pdf_path = user_pdf.get(user_id)
