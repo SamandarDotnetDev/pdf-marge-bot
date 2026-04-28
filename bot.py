@@ -26,7 +26,9 @@ def pdf_to_images(pdf_path, scale=2, output_folder="pages"):
     doc = fitz.open(pdf_path)
     image_paths = []
 
-    for i in range(len(doc)):
+    total_pages = len(doc)
+
+    for i in range(total_pages):
         page = doc[i]
 
         pix = page.get_pixmap(
@@ -41,30 +43,27 @@ def pdf_to_images(pdf_path, scale=2, output_folder="pages"):
         pix.save(img_path)
         image_paths.append(img_path)
 
-    return image_paths
-def auto_merge_images(
-    images,
-    target_min=15,
-    target_max=18,
-    output_folder="merged"
-):
+    return image_paths, total_pages
+def auto_merge_images(images, target_count=15, output_folder="merged"):
+    import os
+    from PIL import Image
+
     os.makedirs(output_folder, exist_ok=True)
 
     total_images = len(images)
 
-    target_count = min(
-        target_max,
-        max(target_min, total_images // 10)
-    )
-
-    pages_per_image = math.ceil(
-        total_images / target_count
-    )
+    base_pages = total_images // target_count
+    extra_pages = total_images % target_count
 
     merged_files = []
+    start = 0
 
-    for i in range(0, total_images, pages_per_image):
-        batch = images[i:i + pages_per_image]
+    for i in range(target_count):
+        # dastlabki extra_pages ta rasmga +1 sahifa
+        pages_in_group = base_pages + (1 if i < extra_pages else 0)
+
+        batch = images[start:start + pages_in_group]
+        start += pages_in_group
 
         pil_images = [Image.open(img) for img in batch]
 
@@ -74,18 +73,16 @@ def auto_merge_images(
         merged = Image.new("RGB", (width, height))
 
         y_offset = 0
-
         for img in pil_images:
             merged.paste(img, (0, y_offset))
             y_offset += img.height
 
         output_path = os.path.join(
             output_folder,
-            f"merged_{len(merged_files)+1}.jpg"
+            f"merged_{i+1}.jpg"
         )
 
         merged.save(output_path, quality=95)
-
         merged_files.append(output_path)
 
     return merged_files
@@ -115,28 +112,81 @@ async def receive_pdf(client, message):
         "Sifatni tanlang:",
         reply_markup=keyboard)
 @app.on_callback_query()
-async def process_quality(client, callback_query):
+async def callback_handler(client, callback_query):
     user_id = callback_query.from_user.id
-    scale = int(callback_query.data.split("_")[1])
+    data = callback_query.data
 
-    pdf_path = user_pdf.get(user_id)
+    # language selection
+    if data.startswith("lang_"):
+        lang = data.split("_")[1]
+        user_language[user_id] = lang
 
-    if not pdf_path:
-        await callback_query.message.reply("PDF topilmadi")
+        if lang == "uz":
+            await callback_query.message.reply("📄 PDF fayl yuboring.")
+        else:
+            await callback_query.message.reply("📄 Please send your PDF file.")
         return
 
-    await callback_query.message.reply(
-        "Ishlanmoqda..."
-    )
+    # quality selection
+    if data.startswith("quality_"):
+        scale = scale_map.get(scale, 1.5)
 
-    images = pdf_to_images(pdf_path, scale=scale)
+    pdf_path = user_pdf.get(user_id)
+    lang = user_language.get(user_id, "en")
+
+    if not pdf_path:
+        if lang == "uz":
+            await callback_query.message.reply("❌ PDF topilmadi.")
+        else:
+            await callback_query.message.reply("❌ PDF not found.")
+        return
+
+    if lang == "uz":
+        progress_msg = await callback_query.message.reply(
+            "⏳ Fayl qayta ishlanmoqda, biroz kuting... o%"
+        )
+    else:
+        progress_msg = await callback_query.message.reply(
+            "⏳ Processing your file, please wait... o%"
+        )
+
+    images, total_pages = pdf_to_images(pdf_path, scale=scale)
+
+    await progress_msg.edit_text("⏳ Processing... 40%")
 
     merged_images = auto_merge_images(images)
 
+    await progress_msg.edit_text("⏳ Processing... 80%")
     zip_file = create_zip(merged_images)
+
+    if lang == "uz":
+        caption_text = "✅ ZIP fayl tayyor."
+    else:
+        caption_text = "✅ ZIP file is ready."
 
     await callback_query.message.reply_document(
         zip_file,
-        caption="ZIP tayyor ✅"
+        caption=caption_text
+    )
+    import shutil
+    shutil.rmtree("pages", ignore_errors=True)
+    shutil.rmtree("merged", ignore_errors=True)
+
+    if os.path.exists(zip_file):
+        os.remove(zip_file)
+user_language = {}
+
+@app.on_message(filters.command("start"))
+async def start_command(client, message):
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🇺🇿 O‘zbek", callback_data="lang_uz"),
+            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
+        ]
+    ])
+
+    await message.reply(
+        "🌐 Tilni tanlang / Choose language",
+        reply_markup=keyboard
     )
 app.run()
