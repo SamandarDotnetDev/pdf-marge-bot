@@ -179,6 +179,7 @@ async def callback_handler(client, callback_query):
         zip_file,
         caption=caption_text
     )
+    await progress_msg.edit_text("✅ Done 100%")
     import shutil
     shutil.rmtree("pages", ignore_errors=True)
     shutil.rmtree("merged", ignore_errors=True)
