@@ -49,7 +49,7 @@ def pdf_to_images(pdf_path, scale=2, output_folder="pages"):
         image_paths.append(img_path)
 
     return image_paths, total_pages
-def auto_merge_images(images, target_count=15, output_folder="merged"):
+def auto_merge_images(images, target_count=20, output_folder="merged"):
     import os
     from PIL import Image
 
