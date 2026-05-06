@@ -61,6 +61,25 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE,
+            days INTEGER DEFAULT 30,
+            max_uses INTEGER DEFAULT 1,
+            used_count INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS promo_uses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            code TEXT,
+            used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -125,6 +144,83 @@ def update_payment_status(payment_id, status):
     conn.execute("UPDATE payments SET status=? WHERE id=?", (status, payment_id))
     conn.commit()
     conn.close()
+
+def create_promo(code, days=30, max_uses=1):
+    conn = get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO promo_codes (code, days, max_uses) VALUES (?, ?, ?)",
+            (code.upper(), days, max_uses)
+        )
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        conn.close()
+        return False  # kod allaqachon mavjud
+
+def use_promo(user_id, code):
+    conn = get_conn()
+    code = code.upper().strip()
+
+    # Kod mavjudmi va faolmi
+    row = conn.execute(
+        "SELECT id, days, max_uses, used_count, is_active FROM promo_codes WHERE code=?",
+        (code,)
+    ).fetchone()
+
+    if not row:
+        conn.close()
+        return False, "❌ Bunday promo kod mavjud emas."
+
+    promo_id, days, max_uses, used_count, is_active = row
+
+    if not is_active:
+        conn.close()
+        return False, "❌ Bu promo kod faol emas."
+
+    if used_count >= max_uses:
+        conn.close()
+        return False, "❌ Bu promo kodning limiti tugagan."
+
+    # Foydalanuvchi allaqachon ishlatganmi
+    already = conn.execute(
+        "SELECT id FROM promo_uses WHERE user_id=? AND code=?",
+        (user_id, code)
+    ).fetchone()
+
+    if already:
+        conn.close()
+        return False, "❌ Siz bu promo kodni allaqachon ishlatgansiz."
+
+    # Ishlatish
+    conn.execute(
+        "INSERT INTO promo_uses (user_id, code) VALUES (?, ?)",
+        (user_id, code)
+    )
+    conn.execute(
+        "UPDATE promo_codes SET used_count = used_count + 1 WHERE id=?",
+        (promo_id,)
+    )
+    conn.commit()
+    conn.close()
+
+    activate_subscription(user_id, days)
+    return True, days
+
+def delete_promo(code):
+    conn = get_conn()
+    conn.execute("UPDATE promo_codes SET is_active=0 WHERE code=?", (code.upper(),))
+    conn.commit()
+    conn.close()
+
+def list_promos():
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT code, days, max_uses, used_count, is_active FROM promo_codes ORDER BY id DESC"
+    ).fetchall()
+    conn.close()
+    return rows
 
 def can_use(user_id):
     if is_subscribed(user_id):
@@ -214,8 +310,36 @@ async def status_command(client, message):
     await send_status(message, user_id)
 
 
-@app.on_message(filters.command("obuna"))
-async def obuna_command(client, message):
+@app.on_message(filters.command("promo"))
+async def promo_command(client, message):
+    """Foydalanuvchi promo kod kiritadi: /promo KOD"""
+    user_id = message.from_user.id
+    ensure_user(user_id, message.from_user.username, message.from_user.full_name)
+
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.reply(
+            "🎟 Promo kod kiritish uchun:\n"
+            "`/promo KODINGIZ`"
+        )
+        return
+
+    code = parts[1]
+    ok, result = use_promo(user_id, code)
+
+    if ok:
+        days = result
+        conn = get_conn()
+        row = conn.execute("SELECT subscribed_until FROM users WHERE user_id=?", (user_id,)).fetchone()
+        conn.close()
+        until = datetime.fromisoformat(row[0])
+        await message.reply(
+            f"🎉 Promo kod qabul qilindi!\n\n"
+            f"📅 Obuna muddati: {until.strftime('%d.%m.%Y')}\n"
+            f"⏳ {days} kun berildi!"
+        )
+    else:
+        await message.reply(result)
     user_id = message.from_user.id
     await send_subscription_info(message, user_id)
 
