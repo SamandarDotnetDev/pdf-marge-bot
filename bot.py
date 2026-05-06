@@ -464,7 +464,16 @@ async def receive_pdf(client, message):
         )
         return
 
-    # Avval tugmani chiqar
+    # Darhol yuklanmoqda xabari
+    loading_msg = await message.reply("⬇️ Fayl yuklanmoqda...")
+
+    try:
+        file_path = await message.download()
+        user_pdf[user_id] = file_path
+    except Exception as e:
+        await loading_msg.edit_text(f"❌ Faylni yuklashda xato: {e}")
+        return
+
     if reason == "free":
         increment_free_count(user_id)
         free_left = FREE_LIMIT - get_free_count(user_id)
@@ -479,11 +488,7 @@ async def receive_pdf(client, message):
             InlineKeyboardButton("HD", callback_data="quality_3")
         ]
     ])
-    await message.reply(f"Sifatni tanlang:{note}", reply_markup=keyboard)
-
-    # Keyin faylni yuklab ol (background)
-    file_path = await message.download()
-    user_pdf[user_id] = file_path
+    await loading_msg.edit_text(f"Sifatni tanlang:{note}", reply_markup=keyboard)
 
 
 # ─── CALLBACK ────────────────────────────────────────────────
