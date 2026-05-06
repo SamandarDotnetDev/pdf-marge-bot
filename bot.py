@@ -210,12 +210,20 @@ def pdf_to_images(pdf_path, scale=2, output_folder="pages"):
 def auto_merge_images(images, target_count=20, output_folder="merged"):
     os.makedirs(output_folder, exist_ok=True)
     total = len(images)
-    base = total // target_count
-    extra = total % target_count
+
+    # Agar rasmlar target_count dan kam bo'lsa, shuncha guruh qil
+    actual_count = min(target_count, total)
+    if actual_count == 0:
+        return []
+
+    base = total // actual_count
+    extra = total % actual_count
     merged_files = []
     start = 0
-    for i in range(target_count):
+    for i in range(actual_count):
         count = base + (1 if i < extra else 0)
+        if count == 0:
+            continue
         batch = images[start:start + count]
         start += count
         pil_images = [Image.open(img) for img in batch]
