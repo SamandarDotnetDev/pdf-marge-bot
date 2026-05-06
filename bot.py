@@ -91,7 +91,8 @@ def get_user(user_id):
     conn.close()
     return row
 
-def ensure_user(user_id, username, full_name):
+def ensure_user(user_id, username, first_name, last_name=""):
+    full_name = f"{first_name} {last_name}".strip()
     conn = get_conn()
     conn.execute(
         "INSERT OR IGNORE INTO users (user_id, username, full_name) VALUES (?, ?, ?)",
@@ -292,7 +293,7 @@ def subscription_keyboard(user_id):
 @app.on_message(filters.command("start"))
 async def start_command(client, message):
     user_id = message.from_user.id
-    ensure_user(user_id, message.from_user.username, message.from_user.full_name)
+    ensure_user(user_id, message.from_user.username, message.from_user.first_name, message.from_user.last_name or "")
 
     keyboard = InlineKeyboardMarkup([
         [
@@ -504,7 +505,7 @@ async def callback_handler(client, callback_query):
     if data.startswith("lang_"):
         lang_code = data.split("_")[1]
         user_language[user_id] = lang_code
-        ensure_user(user_id, callback_query.from_user.username, callback_query.from_user.full_name)
+        ensure_user(user_id, callback_query.from_user.username, callback_query.from_user.first_name, callback_query.from_user.last_name or "")
         if lang_code == "uz":
             await callback_query.message.reply("📄 PDF fayl yuboring.")
         else:
