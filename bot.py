@@ -80,9 +80,10 @@ def get_full_name(user):
 
 def ensure_user(user):
     conn = get_conn()
+    # Faqat yangi foydalanuvchi qo'shiladi, mavjud bo'lsa hech narsa o'zgarmaydi
     conn.execute(
         "INSERT OR IGNORE INTO users (user_id, username, full_name) VALUES (?, ?, ?)",
-        (user.id, user.username, get_full_name(user))
+        (user.id, user.username or "", get_full_name(user))
     )
     conn.commit()
     conn.close()
@@ -455,9 +456,7 @@ async def receive_pdf(client, message):
         )
         return
 
-    file_path = await message.download()
-    user_pdf[user_id] = file_path
-
+    # Avval tugmani chiqar
     if reason == "free":
         increment_free_count(user_id)
         free_left = FREE_LIMIT - get_free_count(user_id)
@@ -473,6 +472,10 @@ async def receive_pdf(client, message):
         ]
     ])
     await message.reply(f"Sifatni tanlang:{note}", reply_markup=keyboard)
+
+    # Keyin faylni yuklab ol (background)
+    file_path = await message.download()
+    user_pdf[user_id] = file_path
 
 
 # ─── CALLBACK ────────────────────────────────────────────────
