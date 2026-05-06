@@ -251,7 +251,14 @@ async def start_command(client, message):
             InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
         ]
     ])
-    await message.reply("🌐 Tilni tanlang / Choose language", reply_markup=keyboard)
+    await message.reply(
+        f"👋 Xush kelibsiz!\n\n"
+        f"📄 Bu bot PDF fayllarni rasmlarga aylantirib ZIP formatda yuboradi.\n\n"
+        f"🆓 **Bepul:** {FREE_LIMIT} ta merge\n"
+        f"💳 **Oylik obuna:** {SUBSCRIPTION_PRICE} so'm — cheksiz foydalanish\n\n"
+        f"Tilni tanlang:",
+        reply_markup=keyboard
+    )
 
 
 @app.on_message(filters.command("holat"))
@@ -382,14 +389,14 @@ async def send_subscription_info(message, user_id):
     text = (
         f"💳 **Oylik obuna — {SUBSCRIPTION_PRICE} so'm**\n\n"
         f"📌 Quyidagi Click kartasiga o'tkazing:\n\n"
-        f"`{CLICK_CARD}`\n\n"
-        f"✅ To'lovdan so'ng chek rasmini yuboring — admin tasdiqlaydi.\n\n"
+        f"💳 `{CLICK_CARD}`\n\n"
+        f"✅ To'lovdan so'ng chek rasmini **shu botga** yuboring — admin tasdiqlaydi.\n\n"
         f"🎟 Promo kodingiz bo'lsa: `/promo KODINGIZ`"
     )
     keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton("📸 Chek yuboraman", callback_data="send_check")]
     ])
-    await message.reply(text, reply_markup=keyboard)
+    await message.reply(text, reply_markup=keyboard, parse_mode="markdown")
 
 
 # ─── PHOTO (CHEK) ────────────────────────────────────────────
