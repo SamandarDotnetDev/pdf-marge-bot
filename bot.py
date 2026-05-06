@@ -11,9 +11,9 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
-CLICK_CARD = os.getenv("CLICK_CARD", "0000 0000 0000 0000")
-SUBSCRIPTION_PRICE = os.getenv("SUBSCRIPTION_PRICE", "20000")
+ADMIN_IDS = os.getenv("ADMIN_IDS")
+CLICK_CARD = os.getenv("CLICK_CARD")
+SUBSCRIPTION_PRICE = os.getenv("SUBSCRIPTION_PRICE")
 FREE_LIMIT = 3
 
 if not API_ID or not API_HASH or not BOT_TOKEN:
