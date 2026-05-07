@@ -268,7 +268,8 @@ async def start_command(client, message):
         f"👋 Xush kelibsiz!\n\n"
         f"📄 Bu bot PDF fayllarni rasmlarga aylantirib ZIP formatda yuboradi.\n\n"
         f"🆓 **Bepul:** {FREE_LIMIT} ta merge\n"
-        f"💳 **Oylik obuna:** {SUBSCRIPTION_PRICE} so'm — cheksiz foydalanish\n\n"
+        f"💳 **Oylik obuna:** {SUBSCRIPTION_PRICE_1} so'm\n"
+        f"💳 **3 oylik obuna:** {SUBSCRIPTION_PRICE_3} so'm — cheksiz foydalanish\n\n"
         f"Tilni tanlang:",
         reply_markup=keyboard
     )
