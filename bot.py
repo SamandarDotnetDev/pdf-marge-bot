@@ -11,8 +11,8 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
-print(f"✅ ADMIN_IDS: {ADMIN_IDS}")
+ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
+print(f"🔑 ADMIN_IDS yuklandi: {ADMIN_IDS}")
 CLICK_CARD = os.getenv("CLICK_CARD", "0000 0000 0000 0000")
 SUBSCRIPTION_PRICE_1 = os.getenv("SUBSCRIPTION_PRICE_1", "20000")   # oylik
 SUBSCRIPTION_PRICE_3 = os.getenv("SUBSCRIPTION_PRICE_3", "50000")   # 3 oylik
@@ -463,7 +463,7 @@ async def receive_pdf(client, message):
     allowed, reason = can_use(user_id)
     if not allowed:
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💳 Obuna olish", callback_data="send_check")],
+            [InlineKeyboardButton("💳 Obuna olish", callback_data="show_plans")],
             [InlineKeyboardButton("📊 Holatim", callback_data="my_status")]
         ])
         await message.reply(
@@ -518,7 +518,23 @@ async def callback_handler(client, callback_query):
         await send_status(callback_query.message, user_id)
         return
 
-    if data.startswith("plan_"):
+    if data == "show_plans":
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"📅 1 oy — {SUBSCRIPTION_PRICE_1} so'm", callback_data="plan_1"),
+                InlineKeyboardButton(f"📅 3 oy — {SUBSCRIPTION_PRICE_3} so'm", callback_data="plan_3"),
+            ]
+        ])
+        await callback_query.message.reply(
+            f"💳 **Obuna tariflarini tanlang:**\n\n"
+            f"📅 **1 oylik** — {SUBSCRIPTION_PRICE_1} so'm\n"
+            f"📅 **3 oylik** — {SUBSCRIPTION_PRICE_3} so'm",
+            reply_markup=keyboard
+        )
+        await callback_query.answer()
+        return
+
+
         plan = data.split("_")[1]
         selected_plan[user_id] = plan
         price = SUBSCRIPTION_PRICE_1 if plan == "1" else SUBSCRIPTION_PRICE_3
