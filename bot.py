@@ -14,7 +14,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = [int(x) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
 print(f"✅ ADMIN_IDS: {ADMIN_IDS}")
 CLICK_CARD = os.getenv("CLICK_CARD", "0000 0000 0000 0000")
-SUBSCRIPTION_PRICE = os.getenv("SUBSCRIPTION_PRICE", "20000")
+SUBSCRIPTION_PRICE_1 = os.getenv("SUBSCRIPTION_PRICE_1", "20000")   # oylik
+SUBSCRIPTION_PRICE_3 = os.getenv("SUBSCRIPTION_PRICE_3", "50000")   # 3 oylik
 FREE_LIMIT = 3
 
 if not API_ID or not API_HASH or not BOT_TOKEN:
@@ -249,7 +250,9 @@ def create_zip(images, zip_name="merged_images.zip"):
 # ─── STATE ───────────────────────────────────────────────────
 user_pdf = {}
 user_language = {}
+# user_id -> tarif: "1" yoki "3"
 waiting_for_check = {}
+selected_plan = {}
 
 # ─── HANDLERS ────────────────────────────────────────────────
 @app.on_message(filters.command("start"))
@@ -397,16 +400,18 @@ async def send_status(message, user_id):
 
 async def send_subscription_info(message, user_id):
     text = (
-        f"💳 **Oylik obuna — {SUBSCRIPTION_PRICE} so'm**\n\n"
-        f"📌 Quyidagi Click kartasiga o'tkazing:\n\n"
-        f"💳 `{CLICK_CARD}`\n\n"
-        f"✅ To'lovdan so'ng chek rasmini **shu botga** yuboring — admin tasdiqlaydi.\n\n"
-        f"🎟 Promo kodingiz bo'lsa: `/promo KODINGIZ`"
+        f"💳 **Obuna tariflar:**\n\n"
+        f"📅 **1 oylik** — {SUBSCRIPTION_PRICE_1} so'm\n"
+        f"📅 **3 oylik** — {SUBSCRIPTION_PRICE_3} so'm\n\n"
+        f"Tarifni tanlang:"
     )
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📸 Chek yuboraman", callback_data="send_check")]
+        [
+            InlineKeyboardButton(f"1 oy — {SUBSCRIPTION_PRICE_1} so'm", callback_data="plan_1"),
+            InlineKeyboardButton(f"3 oy — {SUBSCRIPTION_PRICE_3} so'm", callback_data="plan_3"),
+        ]
     ])
-    await message.reply(text, reply_markup=keyboard, parse_mode="markdown")
+    await message.reply(text, reply_markup=keyboard)
 
 
 # ─── PHOTO (CHEK) ────────────────────────────────────────────
@@ -511,12 +516,29 @@ async def callback_handler(client, callback_query):
         await send_status(callback_query.message, user_id)
         return
 
-    if data == "send_check":
+    if data.startswith("plan_"):
+        plan = data.split("_")[1]
+        selected_plan[user_id] = plan
+        price = SUBSCRIPTION_PRICE_1 if plan == "1" else SUBSCRIPTION_PRICE_3
+        months = "1 oylik" if plan == "1" else "3 oylik"
         waiting_for_check[user_id] = True
         await callback_query.message.reply(
-            f"📸 Iltimos, to'lov cheki rasmini yuboring:\n\n"
+            f"✅ **{months} tarif tanlandi**\n\n"
             f"💳 Karta raqami: `{CLICK_CARD}`\n"
-            f"💰 Summa: {SUBSCRIPTION_PRICE} so'm"
+            f"💰 Summa: {price} so'm\n\n"
+            f"📸 To'lovdan so'ng chek rasmini yuboring:"
+        )
+        await callback_query.answer()
+        return
+
+    if data == "send_check":
+        waiting_for_check[user_id] = True
+        plan = selected_plan.get(user_id, "1")
+        price = SUBSCRIPTION_PRICE_1 if plan == "1" else SUBSCRIPTION_PRICE_3
+        await callback_query.message.reply(
+            f"💳 Karta raqami: `{CLICK_CARD}`\n"
+            f"💰 Summa: {price} so'm\n\n"
+            f"📸 Chek rasmini yuboring:"
         )
         await callback_query.answer()
         return
@@ -533,6 +555,7 @@ async def callback_handler(client, callback_query):
             await app.send_message(
                 target_uid,
                 f"🎉 **Obunangiz tasdiqlandi!**\n"
+                f"📅 Tarif: {months}\n"
                 f"📅 Muddat: {until.strftime('%d.%m.%Y')}\n"
                 f"♾️ Endi cheksiz foydalanishingiz mumkin!"
             )
