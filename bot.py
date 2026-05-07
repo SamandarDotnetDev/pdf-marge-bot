@@ -253,6 +253,7 @@ user_language = {}
 # user_id -> tarif: "1" yoki "3"
 waiting_for_check = {}
 selected_plan = {}
+processing_users = set()
 
 # ─── HANDLERS ────────────────────────────────────────────────
 @app.on_message(filters.command("start"))
@@ -581,25 +582,39 @@ async def callback_handler(client, callback_query):
 
     scale_map = {1: 1, 2: 1.5, 3: 2}
     if data.startswith("quality_"):
+        # Ikki marta bosilishdan himoya
+        if user_id in processing_users:
+            await callback_query.answer("⏳ Fayl allaqachon qayta ishlanmoqda!", show_alert=True)
+            return
+
         scale = scale_map.get(int(data.split("_")[1]), 1.5)
         pdf_path = user_pdf.get(user_id)
         if not pdf_path:
             await callback_query.message.reply("❌ PDF topilmadi. Qayta yuboring.")
             return
 
-        progress_msg = await callback_query.message.reply("⏳ Fayl qayta ishlanmoqda... 0%")
-        images, _ = pdf_to_images(pdf_path, scale=scale)
-        await progress_msg.edit_text("⏳ Processing... 40%")
-        merged = auto_merge_images(images)
-        await progress_msg.edit_text("⏳ Processing... 80%")
-        zip_file = create_zip(merged)
-        await callback_query.message.reply_document(zip_file, caption="✅ ZIP fayl tayyor.")
-        await progress_msg.edit_text("✅ Done 100%")
+        processing_users.add(user_id)
+        # Tugmalarni o'chirish
+        await callback_query.message.edit_reply_markup(reply_markup=None)
 
-        shutil.rmtree("pages", ignore_errors=True)
-        shutil.rmtree("merged", ignore_errors=True)
-        if os.path.exists(zip_file):
-            os.remove(zip_file)
+        progress_msg = await callback_query.message.reply("⏳ Fayl qayta ishlanmoqda... 0%")
+        try:
+            images, _ = pdf_to_images(pdf_path, scale=scale)
+            await progress_msg.edit_text("⏳ Processing... 40%")
+            merged = auto_merge_images(images)
+            await progress_msg.edit_text("⏳ Processing... 80%")
+            zip_file = create_zip(merged)
+            await callback_query.message.reply_document(zip_file, caption="✅ ZIP fayl tayyor.")
+            await progress_msg.edit_text("✅ Done 100%")
+        except Exception as e:
+            await progress_msg.edit_text(f"❌ Xato: {e}")
+        finally:
+            processing_users.discard(user_id)
+            user_pdf.pop(user_id, None)
+            shutil.rmtree("pages", ignore_errors=True)
+            shutil.rmtree("merged", ignore_errors=True)
+            if os.path.exists("merged_images.zip"):
+                os.remove("merged_images.zip")
 
 
 app.run()
