@@ -513,7 +513,12 @@ async def callback_handler(client, callback_query):
 
     if data == "send_check":
         waiting_for_check[user_id] = True
-        await callback_query.message.reply("📸 Iltimos, to'lov cheki rasmini yuboring:")
+        await callback_query.message.reply(
+            f"📸 Iltimos, to'lov cheki rasmini yuboring:\n\n"
+            f"💳 Karta raqami: `{CLICK_CARD}`\n"
+            f"💰 Summa: {SUBSCRIPTION_PRICE} so'm"
+        )
+        await callback_query.answer()
         return
 
     if data.startswith("approve_") and user_id in ADMIN_IDS:
