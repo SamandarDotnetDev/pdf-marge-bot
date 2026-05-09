@@ -25,7 +25,11 @@ API_ID = int(API_ID)
 app = Client("pdf_zip_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 # ─── DATABASE ────────────────────────────────────────────────
-DB = "subscriptions.db"
+DB = os.getenv("DB_PATH", "/app/data/subscriptions.db")
+
+# DB papkasini yaratish
+os.makedirs(os.path.dirname(DB), exist_ok=True)
+print(f"📁 DB path: {DB}")
 
 def get_conn():
     return sqlite3.connect(DB)
@@ -399,17 +403,14 @@ async def send_status(message, user_id):
 
 
 async def send_subscription_info(message, user_id):
-    text = (
+    waiting_for_check[user_id] = True
+    await message.reply(
         f"💳 **Oylik obuna — {SUBSCRIPTION_PRICE} so'm**\n\n"
         f"📌 Quyidagi Click kartasiga o'tkazing:\n\n"
         f"💳 `{CLICK_CARD}`\n\n"
-        f"✅ To'lovdan so'ng chek rasmini yuboring — admin tasdiqlaydi.\n\n"
+        f"✅ To'lovdan so'ng chek rasmini shu botga yuboring — admin tasdiqlaydi.\n\n"
         f"🎟 Promo kodingiz bo'lsa: `/promo KODINGIZ`"
     )
-    keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📸 Chek yuboraman", callback_data="send_check")]
-    ])
-    await message.reply(text, reply_markup=keyboard)
 
 
 # ─── PHOTO (CHEK) ────────────────────────────────────────────
