@@ -500,7 +500,7 @@ async def receive_pdf(client, message):
 
 
 # ─── CALLBACK ────────────────────────────────────────────────
-@app.on_callback_query()
+@app.on_callback_query(filters.regex(".*"))
 async def callback_handler(client, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data
