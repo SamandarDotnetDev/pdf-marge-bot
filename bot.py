@@ -12,10 +12,11 @@ API_ID = os.getenv("API_ID")
 API_HASH = os.getenv("API_HASH")
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
-print(f"🔑 ADMIN_IDS yuklandi: {ADMIN_IDS}")
 CLICK_CARD = os.getenv("CLICK_CARD", "0000 0000 0000 0000")
 SUBSCRIPTION_PRICE = os.getenv("SUBSCRIPTION_PRICE", "20000")
 FREE_LIMIT = 3
+
+print(f"🔑 ADMIN_IDS yuklandi: {ADMIN_IDS}")
 
 if not API_ID or not API_HASH or not BOT_TOKEN:
     raise ValueError("Environment variables are missing")
@@ -26,8 +27,6 @@ app = Client("pdf_zip_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKE
 
 # ─── DATABASE ────────────────────────────────────────────────
 DB = os.getenv("DB_PATH", "/app/data/subscriptions.db")
-
-# DB papkasini yaratish
 os.makedirs(os.path.dirname(DB), exist_ok=True)
 print(f"📁 DB path: {DB}")
 
@@ -85,7 +84,6 @@ def get_full_name(user):
 
 def ensure_user(user):
     conn = get_conn()
-    # Faqat yangi foydalanuvchi qo'shiladi, mavjud bo'lsa hech narsa o'zgarmaydi
     conn.execute(
         "INSERT OR IGNORE INTO users (user_id, username, full_name) VALUES (?, ?, ?)",
         (user.id, user.username or "", get_full_name(user))
@@ -160,8 +158,7 @@ def use_promo(user_id, code):
     conn = get_conn()
     code = code.upper().strip()
     row = conn.execute(
-        "SELECT id, days, max_uses, used_count, is_active FROM promo_codes WHERE code=?",
-        (code,)
+        "SELECT id, days, max_uses, used_count, is_active FROM promo_codes WHERE code=?", (code,)
     ).fetchone()
     if not row:
         conn.close()
@@ -215,12 +212,9 @@ def pdf_to_images(pdf_path, scale=2, output_folder="pages"):
 def auto_merge_images(images, target_count=20, output_folder="merged"):
     os.makedirs(output_folder, exist_ok=True)
     total = len(images)
-
-    # Agar rasmlar target_count dan kam bo'lsa, shuncha guruh qil
     actual_count = min(target_count, total)
     if actual_count == 0:
         return []
-
     base = total // actual_count
     extra = total % actual_count
     merged_files = []
@@ -253,10 +247,33 @@ def create_zip(images, zip_name="merged_images.zip"):
 # ─── STATE ───────────────────────────────────────────────────
 user_pdf = {}
 user_language = {}
-# user_id -> tarif: "1" yoki "3"
 waiting_for_check = {}
-selected_plan = {}
 processing_users = set()
+
+# ─── HELPERS ─────────────────────────────────────────────────
+async def send_status(message, user_id):
+    if is_subscribed(user_id):
+        conn = get_conn()
+        row = conn.execute("SELECT subscribed_until FROM users WHERE user_id=?", (user_id,)).fetchone()
+        conn.close()
+        until = datetime.fromisoformat(row[0])
+        days_left = (until - datetime.now()).days
+        text = f"✅ **Obuna faol!**\n📅 Muddat: {until.strftime('%d.%m.%Y')}\n⏳ Qoldi: {days_left} kun"
+    else:
+        free = get_free_count(user_id)
+        remaining = FREE_LIMIT - free
+        text = f"🆓 **Bepul limit:** {remaining}/{FREE_LIMIT} ta qoldi\n\nObuna olish: /obuna"
+    await message.reply(text)
+
+async def send_subscription_info(message, user_id):
+    waiting_for_check[user_id] = True
+    await message.reply(
+        f"💳 **Oylik obuna — {SUBSCRIPTION_PRICE} so'm**\n\n"
+        f"📌 Quyidagi Click kartasiga o'tkazing:\n\n"
+        f"💳 `{CLICK_CARD}`\n\n"
+        f"✅ To'lovdan so'ng chek rasmini shu botga yuboring — admin tasdiqlaydi.\n\n"
+        f"🎟 Promo kodingiz bo'lsa: `/promo KODINGIZ`"
+    )
 
 # ─── HANDLERS ────────────────────────────────────────────────
 @app.on_message(filters.command("start"))
@@ -277,18 +294,15 @@ async def start_command(client, message):
         reply_markup=keyboard
     )
 
-
 @app.on_message(filters.command("holat"))
 async def status_command(client, message):
     ensure_user(message.from_user)
     await send_status(message, message.from_user.id)
 
-
 @app.on_message(filters.command("obuna"))
 async def obuna_command(client, message):
     ensure_user(message.from_user)
     await send_subscription_info(message, message.from_user.id)
-
 
 @app.on_message(filters.command("promo"))
 async def promo_command(client, message):
@@ -312,8 +326,7 @@ async def promo_command(client, message):
     else:
         await message.reply(result)
 
-
-# ─── ADMIN BUYRUQLARI ────────────────────────────────────────
+# ─── ADMIN ───────────────────────────────────────────────────
 @app.on_message(filters.command("foydalanuvchilar") & filters.user(ADMIN_IDS))
 async def users_command(client, message):
     conn = get_conn()
@@ -330,7 +343,6 @@ async def users_command(client, message):
         text += f"• {name} (@{uname}) — {sub}\n"
     await message.reply(text)
 
-
 @app.on_message(filters.command("berobuna") & filters.user(ADMIN_IDS))
 async def give_subscription(client, message):
     parts = message.text.split()
@@ -345,7 +357,6 @@ async def give_subscription(client, message):
         await app.send_message(uid, f"🎉 Sizga {days} kunlik obuna berildi!\nMuddati: {until.strftime('%d.%m.%Y')}")
     except Exception as e:
         await message.reply(f"Xato: {e}")
-
 
 @app.on_message(filters.command("promoyarat") & filters.user(ADMIN_IDS))
 async def create_promo_cmd(client, message):
@@ -362,7 +373,6 @@ async def create_promo_cmd(client, message):
     else:
         await message.reply(f"❌ `{code}` kodi allaqachon mavjud.")
 
-
 @app.on_message(filters.command("promolar") & filters.user(ADMIN_IDS))
 async def list_promos_cmd(client, message):
     rows = list_promos()
@@ -375,7 +385,6 @@ async def list_promos_cmd(client, message):
         text += f"{status} `{code}` — {days} kun | {used}/{max_uses} ishlatilgan\n"
     await message.reply(text)
 
-
 @app.on_message(filters.command("promo_ochir") & filters.user(ADMIN_IDS))
 async def delete_promo_cmd(client, message):
     parts = message.text.split()
@@ -385,40 +394,14 @@ async def delete_promo_cmd(client, message):
     delete_promo(parts[1])
     await message.reply(f"✅ `{parts[1].upper()}` kodi o'chirildi.")
 
-
-# ─── STATUS VA OBUNA ─────────────────────────────────────────
-async def send_status(message, user_id):
-    if is_subscribed(user_id):
-        conn = get_conn()
-        row = conn.execute("SELECT subscribed_until FROM users WHERE user_id=?", (user_id,)).fetchone()
-        conn.close()
-        until = datetime.fromisoformat(row[0])
-        days_left = (until - datetime.now()).days
-        text = f"✅ **Obuna faol!**\n📅 Muddat: {until.strftime('%d.%m.%Y')}\n⏳ Qoldi: {days_left} kun"
-    else:
-        free = get_free_count(user_id)
-        remaining = FREE_LIMIT - free
-        text = f"🆓 **Bepul limit:** {remaining}/{FREE_LIMIT} ta qoldi\n\nObuna olish: /obuna"
-    await message.reply(text)
-
-
-async def send_subscription_info(message, user_id):
-    waiting_for_check[user_id] = True
-    await message.reply(
-        f"💳 **Oylik obuna — {SUBSCRIPTION_PRICE} so'm**\n\n"
-        f"📌 Quyidagi Click kartasiga o'tkazing:\n\n"
-        f"💳 `{CLICK_CARD}`\n\n"
-        f"✅ To'lovdan so'ng chek rasmini shu botga yuboring — admin tasdiqlaydi.\n\n"
-        f"🎟 Promo kodingiz bo'lsa: `/promo KODINGIZ`"
-    )
-
-
 # ─── PHOTO (CHEK) ────────────────────────────────────────────
 @app.on_message(filters.photo)
 async def receive_photo(client, message):
     user_id = message.from_user.id
+    print(f"📸 Rasm keldi. user_id={user_id}, waiting={waiting_for_check.get(user_id)}")
+
     if not waiting_for_check.get(user_id):
-        await message.reply("📄 PDF fayl yuboring yoki /obuna buyrug'ini bosing.")
+        await message.reply("📄 PDF fayl yuboring yoki /obuna buyrug'ini yuboring.")
         return
 
     waiting_for_check.pop(user_id, None)
@@ -427,6 +410,7 @@ async def receive_photo(client, message):
     await message.reply("⏳ Chekingiz adminga yuborildi. Tez orada tasdiqlanadi!")
 
     user = message.from_user
+    print(f"📤 Adminlarga yuborilmoqda: {ADMIN_IDS}")
     for admin_id in ADMIN_IDS:
         try:
             keyboard = InlineKeyboardMarkup([
@@ -447,9 +431,9 @@ async def receive_photo(client, message):
                 ),
                 reply_markup=keyboard
             )
-        except Exception:
-            pass
-
+            print(f"✅ Admin {admin_id} ga yuborildi")
+        except Exception as e:
+            print(f"❌ Admin {admin_id} ga yuborishda xato: {e}")
 
 # ─── PDF ─────────────────────────────────────────────────────
 @app.on_message(filters.document)
@@ -459,19 +443,13 @@ async def receive_pdf(client, message):
 
     allowed, reason = can_use(user_id)
     if not allowed:
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💳 Obuna olish", callback_data="show_plans")],
-            [InlineKeyboardButton("📊 Holatim", callback_data="my_status")]
-        ])
         await message.reply(
-            f"❌ Bepul limitingiz tugadi ({FREE_LIMIT} ta).\n\n♾️ Obuna olish uchun:",
-            reply_markup=keyboard
+            f"❌ Bepul limitingiz tugadi ({FREE_LIMIT} ta).\n\n"
+            f"♾️ Obuna olish uchun /obuna buyrug'ini yuboring."
         )
         return
 
-    # Darhol yuklanmoqda xabari
     loading_msg = await message.reply("⬇️ Fayl yuklanmoqda...")
-
     try:
         file_path = await message.download()
         user_pdf[user_id] = file_path
@@ -495,13 +473,14 @@ async def receive_pdf(client, message):
     ])
     await loading_msg.edit_text(f"Sifatni tanlang:{note}", reply_markup=keyboard)
 
-
 # ─── CALLBACK ────────────────────────────────────────────────
 @app.on_callback_query(filters.regex(".*"))
 async def callback_handler(client, callback_query):
     user_id = callback_query.from_user.id
     data = callback_query.data
+    print(f"📲 Callback: user={user_id}, data={data}")
 
+    # 1. Til tanlash
     if data.startswith("lang_"):
         lang_code = data.split("_")[1]
         user_language[user_id] = lang_code
@@ -509,107 +488,80 @@ async def callback_handler(client, callback_query):
         await callback_query.message.reply(
             "📄 PDF fayl yuboring." if lang_code == "uz" else "📄 Please send your PDF file."
         )
+        await callback_query.answer()
         return
 
+    # 2. Holat
     if data == "my_status":
         await send_status(callback_query.message, user_id)
-        return
-
-    if data == "show_plans":
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(f"📅 1 oy — {SUBSCRIPTION_PRICE_1} so'm", callback_data="plan_1"),
-                InlineKeyboardButton(f"📅 3 oy — {SUBSCRIPTION_PRICE_3} so'm", callback_data="plan_3"),
-            ]
-        ])
-        await callback_query.message.reply(
-            f"💳 **Obuna tariflarini tanlang:**\n\n"
-            f"📅 **1 oylik** — {SUBSCRIPTION_PRICE_1} so'm\n"
-            f"📅 **3 oylik** — {SUBSCRIPTION_PRICE_3} so'm",
-            reply_markup=keyboard
-        )
         await callback_query.answer()
         return
 
-
-        plan = data.split("_")[1]
-        selected_plan[user_id] = plan
-        price = SUBSCRIPTION_PRICE_1 if plan == "1" else SUBSCRIPTION_PRICE_3
-        months = "1 oylik" if plan == "1" else "3 oylik"
-        waiting_for_check[user_id] = True
-        await callback_query.message.reply(
-            f"✅ **{months} tarif tanlandi**\n\n"
-            f"💳 Karta raqami: `{CLICK_CARD}`\n"
-            f"💰 Summa: {price} so'm\n\n"
-            f"📸 To'lovdan so'ng chek rasmini yuboring:"
-        )
-        await callback_query.answer()
-        return
-
+    # 3. Chek yuborish
     if data == "send_check":
-        waiting_for_check[user_id] = True
-        plan = selected_plan.get(user_id, "1")
-        price = SUBSCRIPTION_PRICE_1 if plan == "1" else SUBSCRIPTION_PRICE_3
-        await callback_query.message.reply(
-            f"💳 Karta raqami: `{CLICK_CARD}`\n"
-            f"💰 Summa: {price} so'm\n\n"
-            f"📸 Chek rasmini yuboring:"
-        )
+        await send_subscription_info(callback_query.message, user_id)
         await callback_query.answer()
         return
 
-    if data.startswith("approve_") and user_id in ADMIN_IDS:
+    # 4. Admin: tasdiqlash
+    if data.startswith("approve_"):
+        if user_id not in ADMIN_IDS:
+            await callback_query.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
         parts = data.split("_")
         payment_id, target_uid = int(parts[1]), int(parts[2])
         update_payment_status(payment_id, "approved")
         until = activate_subscription(target_uid, 30)
         await callback_query.message.edit_caption(
-            callback_query.message.caption + "\n\n✅ **TASDIQLANDI**"
+            callback_query.message.caption + "\n\n✅ TASDIQLANDI"
         )
         try:
             await app.send_message(
                 target_uid,
                 f"🎉 **Obunangiz tasdiqlandi!**\n"
-                f"📅 Tarif: {months}\n"
                 f"📅 Muddat: {until.strftime('%d.%m.%Y')}\n"
                 f"♾️ Endi cheksiz foydalanishingiz mumkin!"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Xato: {e}")
         await callback_query.answer("✅ Tasdiqlandi!")
         return
 
-    if data.startswith("reject_") and user_id in ADMIN_IDS:
+    # 5. Admin: rad etish
+    if data.startswith("reject_"):
+        if user_id not in ADMIN_IDS:
+            await callback_query.answer("❌ Ruxsat yo'q!", show_alert=True)
+            return
         parts = data.split("_")
         payment_id, target_uid = int(parts[1]), int(parts[2])
         update_payment_status(payment_id, "rejected")
         await callback_query.message.edit_caption(
-            callback_query.message.caption + "\n\n❌ **RAD ETILDI**"
+            callback_query.message.caption + "\n\n❌ RAD ETILDI"
         )
         try:
-            await app.send_message(target_uid, "❌ Afsuski, to'lovingiz tasdiqlanmadi.\nMuammo bo'lsa admin bilan bog'laning.")
-        except Exception:
-            pass
+            await app.send_message(
+                target_uid,
+                "❌ Afsuski, to'lovingiz tasdiqlanmadi.\nMuammo bo'lsa admin bilan bog'laning."
+            )
+        except Exception as e:
+            print(f"Xato: {e}")
         await callback_query.answer("❌ Rad etildi!")
         return
 
-    scale_map = {1: 1, 2: 1.5, 3: 2}
+    # 6. Sifat tanlash
     if data.startswith("quality_"):
-        # Ikki marta bosilishdan himoya
         if user_id in processing_users:
             await callback_query.answer("⏳ Fayl allaqachon qayta ishlanmoqda!", show_alert=True)
             return
-
+        scale_map = {1: 1, 2: 1.5, 3: 2}
         scale = scale_map.get(int(data.split("_")[1]), 1.5)
         pdf_path = user_pdf.get(user_id)
         if not pdf_path:
             await callback_query.message.reply("❌ PDF topilmadi. Qayta yuboring.")
+            await callback_query.answer()
             return
-
         processing_users.add(user_id)
-        # Tugmalarni o'chirish
         await callback_query.message.edit_reply_markup(reply_markup=None)
-
         progress_msg = await callback_query.message.reply("⏳ Fayl qayta ishlanmoqda... 0%")
         try:
             images, _ = pdf_to_images(pdf_path, scale=scale)
@@ -628,6 +580,9 @@ async def callback_handler(client, callback_query):
             shutil.rmtree("merged", ignore_errors=True)
             if os.path.exists("merged_images.zip"):
                 os.remove("merged_images.zip")
+        await callback_query.answer()
+        return
 
+    await callback_query.answer()
 
 app.run()
