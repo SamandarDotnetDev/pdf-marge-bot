@@ -14,8 +14,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = [int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()]
 print(f"🔑 ADMIN_IDS yuklandi: {ADMIN_IDS}")
 CLICK_CARD = os.getenv("CLICK_CARD", "0000 0000 0000 0000")
-SUBSCRIPTION_PRICE_1 = os.getenv("SUBSCRIPTION_PRICE_1", "20000")   # oylik
-SUBSCRIPTION_PRICE_3 = os.getenv("SUBSCRIPTION_PRICE_3", "50000")   # 3 oylik
+SUBSCRIPTION_PRICE = os.getenv("SUBSCRIPTION_PRICE", "20000")
 FREE_LIMIT = 3
 
 if not API_ID or not API_HASH or not BOT_TOKEN:
@@ -269,8 +268,7 @@ async def start_command(client, message):
         f"👋 Xush kelibsiz!\n\n"
         f"📄 Bu bot PDF fayllarni rasmlarga aylantirib ZIP formatda yuboradi.\n\n"
         f"🆓 **Bepul:** {FREE_LIMIT} ta merge\n"
-        f"💳 **Oylik obuna:** {SUBSCRIPTION_PRICE_1} so'm\n"
-        f"💳 **3 oylik obuna:** {SUBSCRIPTION_PRICE_3} so'm — cheksiz foydalanish\n\n"
+        f"💳 **Oylik obuna:** {SUBSCRIPTION_PRICE} so'm — cheksiz foydalanish\n\n"
         f"Tilni tanlang:",
         reply_markup=keyboard
     )
@@ -402,16 +400,14 @@ async def send_status(message, user_id):
 
 async def send_subscription_info(message, user_id):
     text = (
-        f"💳 **Obuna tariflar:**\n\n"
-        f"📅 **1 oylik** — {SUBSCRIPTION_PRICE_1} so'm\n"
-        f"📅 **3 oylik** — {SUBSCRIPTION_PRICE_3} so'm\n\n"
-        f"Tarifni tanlang:"
+        f"💳 **Oylik obuna — {SUBSCRIPTION_PRICE} so'm**\n\n"
+        f"📌 Quyidagi Click kartasiga o'tkazing:\n\n"
+        f"💳 `{CLICK_CARD}`\n\n"
+        f"✅ To'lovdan so'ng chek rasmini yuboring — admin tasdiqlaydi.\n\n"
+        f"🎟 Promo kodingiz bo'lsa: `/promo KODINGIZ`"
     )
     keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(f"1 oy — {SUBSCRIPTION_PRICE_1} so'm", callback_data="plan_1"),
-            InlineKeyboardButton(f"3 oy — {SUBSCRIPTION_PRICE_3} so'm", callback_data="plan_3"),
-        ]
+        [InlineKeyboardButton("📸 Chek yuboraman", callback_data="send_check")]
     ])
     await message.reply(text, reply_markup=keyboard)
 
